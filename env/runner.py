@@ -2,7 +2,7 @@ import time
 import numpy as np
 import torch
 from collections import OrderedDict
-from torchvision.io import write_video, write_jpeg
+from torchvision.io import write_video, write_jpeg, write_png
 from pathlib import Path
 
 
@@ -64,6 +64,7 @@ class JpegCapture(EnvObserver):
         self.t = []
         self.directory = directory
         self.cap_id = 0
+        self.image_id = 0
 
     def reset(self):
         pass
@@ -72,12 +73,33 @@ class JpegCapture(EnvObserver):
         self.t.append(state)
 
     def done(self):
-        save_dir = f'{self.directory} / {self.cap_id}'
-        Path(save_dir).mkdir(parents=True, exist_ok=True)
+        Path(self.directory).mkdir(parents=True, exist_ok=True)
         stream = torch.from_numpy(np.stack(self.t))
-        for i, image in enumerate(stream):
-            write_jpeg(image.permute(2, 0, 1), f'{save_dir}/{i}.jpg')
-        self.cap_id += 1
+        for image in stream:
+            write_jpeg(image.permute(2, 0, 1), f'{self.directory}/{self.image_id}.jpg')
+            self.image_id += 1
+
+
+class PngCapture(EnvObserver):
+    def __init__(self, directory):
+        self.t = []
+        self.directory = directory
+        self.cap_id = 0
+        self.image_id = 0
+
+    def reset(self):
+        pass
+
+    def step(self, state, action, reward, done, info, **kwargs):
+        self.t.append(state)
+
+    def done(self):
+        Path(self.directory).mkdir(parents=True, exist_ok=True)
+        stream = torch.from_numpy(np.stack(self.t))
+        for image in stream:
+            write_png(image.permute(2, 0, 1), f'{self.directory}/{self.image_id}.png')
+            self.image_id += 1
+
 
 
 class StepFilter:

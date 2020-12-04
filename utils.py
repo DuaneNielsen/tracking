@@ -98,7 +98,14 @@ def load_ply(f):
     _check_faces_indices(faces, max_index=verts.shape[0])
     return verts, verts_normal, verts_st, verts_rgba, faces
 
+def load_blender_stl_mesh(file):
+    verts, normals, sts, colors, faces = load_ply(file)
+    colors = colors[:, 0:3].to(torch.float) / 255.0
+    return verts, normals, sts, colors, faces
+
 if __name__ == '__main__':
 
     verts, verts_nomal, verts_st, verts_rgba, faces = load_ply('data/green_paddle.ply')
     print(verts_rgba)
+
+
