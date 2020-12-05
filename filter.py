@@ -17,7 +17,7 @@ def sample_top_k(probs, k, deterministic=False, sorted=False):
     return i
 
 
-def axis(min, max, n, dtype=torch.float, reversed=False):
+def axis(min, max, n, dtype=torch.float, reversed=False, device='cpu'):
     """
 
     :param n: number of intervals/cells/pixels on axis
@@ -41,11 +41,11 @@ def axis(min, max, n, dtype=torch.float, reversed=False):
     start = p(0, l, n, min)
     end = p(n-1, l, n, min)
     if reversed:
-        return torch.linspace(end, start, n, dtype=dtype)
-    return torch.linspace(start, end, n, dtype=dtype)
+        return torch.linspace(end, start, n, dtype=dtype, device=device)
+    return torch.linspace(start, end, n, dtype=dtype, device=device)
 
 
-def sample_particles_from_heatmap_2d(heatmap, k, h_min=0.0, w_min=0.0, h_max=1.0, w_max=1.0, deterministic=False, sorted=False):
+def sample_particles_from_heatmap_2d(heatmap, k, h_min=0.0, w_min=0.0, h_max=1.0, w_max=1.0, deterministic=False, sorted=False, device='cpu'):
     """
 
     :param heatmap: N, M, H, W, a batch N of M heatmaps (one for each mesh) of H high and W wide, normalized between 0-1
@@ -62,8 +62,8 @@ def sample_particles_from_heatmap_2d(heatmap, k, h_min=0.0, w_min=0.0, h_max=1.0
     N, M, H, W = heatmap.shape
     if M != len(k):
         raise Exception(f'Expected k to have {M} entries, one for each heatmap')
-    h_axis = axis(h_min, h_max, H, dtype=torch.float, reversed=True)
-    w_axis = axis(w_min, w_max, W, dtype=torch.float)
+    h_axis = axis(h_min, h_max, H, dtype=torch.float, reversed=True, device=device)
+    w_axis = axis(w_min, w_max, W, dtype=torch.float, device=device)
     h_i, w_i = torch.meshgrid(h_axis, w_axis)
     h_i, w_i = h_i.flatten(0), w_i.flatten(0)
     hw = OrderedDict()
