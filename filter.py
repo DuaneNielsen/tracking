@@ -17,6 +17,11 @@ def sample_top_k(probs, k, deterministic=False, sorted=False):
     return i
 
 
+def sample_random(probs, k):
+    N, P = probs.flatten(1).shape
+    return torch.randint(P, (N, k), device=probs.device)
+
+
 def axis(min, max, n, dtype=torch.float, reversed=False, device='cpu'):
     """
 
@@ -48,7 +53,7 @@ def axis(min, max, n, dtype=torch.float, reversed=False, device='cpu'):
 def sample_particles_from_heatmap_2d(heatmap, k, h_min=0.0, w_min=0.0, h_max=1.0, w_max=1.0, deterministic=False, sorted=False, device='cpu'):
     """
 
-    :param heatmap: N, M, H, W, a batch N of M heatmaps (one for each mesh) of H high and W wide, normalized between 0-1
+    :param heatmap: N, M, H, W, a batch N of M heatmaps (one for each mesh) of H high and W wide
     :param k: an OrderedDict with M entries, name: the label of the mesh, k, the number of particles to generate
     ie {'cup': 5, 'saucer', 3, 'spoon': 10 }, the order indicates which heatmap will be used
     :param h_min: minimum height co-ordinate
@@ -60,6 +65,7 @@ def sample_particles_from_heatmap_2d(heatmap, k, h_min=0.0, w_min=0.0, h_max=1.0
     height and width are floats containing an approximate value of the height or width, according to the axis function
     """
     N, M, H, W = heatmap.shape
+    heatmap = torch.sigmoid(heatmap)
     if M != len(k):
         raise Exception(f'Expected k to have {M} entries, one for each heatmap')
     h_axis = axis(h_min, h_max, H, dtype=torch.float, reversed=True, device=device)
@@ -71,6 +77,7 @@ def sample_particles_from_heatmap_2d(heatmap, k, h_min=0.0, w_min=0.0, h_max=1.0
     for i, (label, k) in enumerate(k.items()):
         features = heatmap[:, i]
         index = sample_top_k(features, k, deterministic=deterministic, sorted=sorted)
+        #index = sample_random(features, k)
         a = torch.gather(features.flatten(1), dim=1, index=index)
         h, w = h_i[index], w_i[index]
         hw[label] = torch.stack((h, w), dim=2)

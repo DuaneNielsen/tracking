@@ -206,13 +206,24 @@ def minimal_blend(colors, fragments, blend_params):
 def softmax_alpha_blend(colors, fragments, blend_params):
     N, H, W, K = fragments.pix_to_face.shape
     device = fragments.pix_to_face.device
+
+    #background_color = blend_params.background_color.reshape(1, 1, 1, 1, 3).expand(N, H, W, 1, 3)
+
     rgb = colors[..., 0:3]
     alpha = colors[..., 3]
+
+    #background_mask = alpha.max(dim=3)[0].detach()
+    #background_heatmap = background_heatmap * background_mask
+    #background_heatmap.register_hook(lambda grad: grad * background_mask)
+
+    #rgb = torch.cat((background_color, rgb), dim=3)
+    #alpha = torch.cat((background_heatmap.unsqueeze(-1), alpha), dim=3)
+
     blend = torch.softmax(alpha, dim=-1)
     rgb = rgb * blend.unsqueeze(-1)
     rgb = rgb.sum(dim=3)
-    alpha = torch.ones((N, H, W, 1), dtype=colors.dtype, device=device)
-    return torch.cat([rgb, alpha], dim=-1)  # (N, H, W, 4)
+    a = torch.ones((N, H, W, 1), dtype=colors.dtype, device=device)
+    return torch.cat([rgb, a], dim=-1), alpha  # (N, H, W, 4)
 
 
 class CustomFlatShader(nn.Module):
@@ -247,6 +258,7 @@ class CustomFlatShader(nn.Module):
         self.lights = self.lights.to(device)
 
     def forward(self, fragments, meshes, **kwargs) -> torch.Tensor:
+        #background_heatmap = kwargs['background_heatmap']
         cameras = kwargs.get("cameras", self.cameras)
         if cameras is None:
             msg = "Cameras must be specified either at initialization \
@@ -264,5 +276,5 @@ class CustomFlatShader(nn.Module):
             cameras=cameras,
             materials=materials,
         )
-        images = softmax_alpha_blend(colors, fragments, blend_params)
-        return images
+        images, alpha = softmax_alpha_blend(colors, fragments, blend_params)
+        return images, alpha

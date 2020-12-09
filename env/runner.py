@@ -81,11 +81,12 @@ class JpegCapture(EnvObserver):
 
 
 class PngCapture(EnvObserver):
-    def __init__(self, directory):
+    def __init__(self, directory, skip_first_n=0):
         self.t = []
         self.directory = directory
         self.cap_id = 0
         self.image_id = 0
+        self.skip_first_n = skip_first_n
 
     def reset(self):
         pass
@@ -96,10 +97,10 @@ class PngCapture(EnvObserver):
     def done(self):
         Path(self.directory).mkdir(parents=True, exist_ok=True)
         stream = torch.from_numpy(np.stack(self.t))
-        for image in stream:
-            write_png(image.permute(2, 0, 1), f'{self.directory}/{self.image_id}.png')
+        for i, image in enumerate(stream):
+            if i > self.skip_first_n:
+                write_png(image.permute(2, 0, 1), f'{self.directory}/{self.image_id}.png')
             self.image_id += 1
-
 
 
 class StepFilter:

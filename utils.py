@@ -98,10 +98,49 @@ def load_ply(f):
     _check_faces_indices(faces, max_index=verts.shape[0])
     return verts, verts_normal, verts_st, verts_rgba, faces
 
-def load_blender_stl_mesh(file):
+def load_blender_ply_mesh(file):
     verts, normals, sts, colors, faces = load_ply(file)
     colors = colors[:, 0:3].to(torch.float) / 255.0
     return verts, normals, sts, colors, faces
+
+
+class BoundingBoxes:
+    def __init__(self, box_screen):
+        """
+
+        :param box_screen: tensor N, A, M, N=batch, A=axis, M=min/max M=0 is min and M=1 is max
+        """
+        self.box_screen = box_screen
+
+    @property
+    def min(self):
+        return self.box_screen[:, 0]
+
+    @property
+    def max(self):
+        return self.box_screen[:, 1]
+
+    def mpl_anchor(self, n):
+        """
+        rectangle anchor for matplotlib
+
+           (0,0) |||||||||||||
+           ||               ||
+           ||               ||
+           ||               ||
+        anchor (x, y) |||||||
+
+        :param n: index of box in array
+        :return: tuple (x, y)
+        """
+        return self.box_screen[n, 0, 0], self.box_screen[n, 0, 1]
+
+    def height(self, n):
+        return self.box_screen[n, 1, 1] - self.box_screen[n, 0, 1]
+
+    def width(self, n):
+        return self.box_screen[n, 1, 0] - self.box_screen[n, 0, 0]
+
 
 if __name__ == '__main__':
 

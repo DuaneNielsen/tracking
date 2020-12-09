@@ -56,15 +56,13 @@ class LayerBuilder:
     def make_block(self, in_channels, v):
         pass
 
-    def make_layers(self, cfg, meta, nonlinearity=None, nonlinearity_kwargs=None):
+    def make_layers(self, cfg, meta, nonlinearity=None):
         self.layers = []
-        self.output_channels = nonlinearity_kwargs
         self.nonlinearity = nonlinearity
         self.new_layer_hook()
         self.meta = meta
 
-        nonlinearity_kwargs = {} if nonlinearity_kwargs is None else nonlinearity_kwargs
-        self.nonlinearity = nn.ReLU(inplace=True) if nonlinearity is None else nonlinearity(**nonlinearity_kwargs)
+        self.nonlinearity = nn.ReLU(inplace=True) if nonlinearity is None else nonlinearity
 
         tipe, in_channels = scan_token(cfg[0])
         for token in cfg[1:]:

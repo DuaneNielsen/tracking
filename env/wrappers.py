@@ -361,7 +361,7 @@ class ClipState2D(gym.ObservationWrapper):
 
 
 class ApplyFunc(gym.ObservationWrapper):
-    def __init__(self, env, func, output_observation_space):
+    def __init__(self, env, func, output_observation_space=None):
         """
         Apply the given function to the observation and return the output
         :param env: environment
@@ -376,7 +376,8 @@ class ApplyFunc(gym.ObservationWrapper):
         """
         super().__init__(env)
         self.func = func
-        self.observation_space = output_observation_space
+        self.observation_space = output_observation_space if output_observation_space is not None \
+            else env.observation_space
 
     def observation(self, observation):
         return self.func(observation)

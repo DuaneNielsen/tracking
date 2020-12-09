@@ -5,7 +5,8 @@ from pytorch3d.structures import Meshes, join_meshes_as_scene
 import torch
 import torch.nn as nn
 import matplotlib.pylab as plt
-from utils import load_blender_stl_mesh
+from utils import load_blender_ply_mesh
+from collections import OrderedDict
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -32,7 +33,7 @@ blue = white * torch.tensor([0.0, 0.0, 1.0])
 
 def height(z):
     v = verts.clone()
-    v[:, 2] = torch.full((4, ), fill_value=z)
+    v[:, 2] = torch.full((4,), fill_value=z)
     return v
 
 
@@ -41,7 +42,6 @@ meshes = Meshes(
     faces=[faces, faces, faces],
     textures=TexturesVertex([red, green, blue])
 )
-
 
 scene = join_meshes_as_scene(meshes)
 
@@ -71,8 +71,6 @@ raster_settings = RasterizationSettings(
 )
 
 
-
-
 def render(renderer, scene):
     distance, elevation, azimuth = 30, 0.0, 0
     R, T = look_at_view_transform(distance, elevation, azimuth, device=device)
@@ -82,7 +80,7 @@ def render(renderer, scene):
 def plot_channels(image):
     fig = plt.figure(figsize=(10, 10))
     for i in range(image.size(-2)):
-        panel = fig.add_subplot(3, 3, i+1)
+        panel = fig.add_subplot(3, 3, i + 1)
         panel.imshow(image[..., i, :].squeeze().cpu())
     plt.grid(False)
     plt.show()
@@ -101,7 +99,7 @@ def test_zbuffer_render():
 
 
 def test_my_renderer():
-    vert, normal, st, color, face = load_blender_stl_mesh('../data/meshes/background.ply')
+    vert, normal, st, color, face = load_blender_ply_mesh('../data/meshes/background.ply')
     # V, _ = vert.shape
     # meshes = Meshes(
     #     verts=[vert.to(device)],
@@ -126,7 +124,6 @@ def test_my_renderer():
         [-x, y, 0]
     ], dtype=torch.float)
 
-
     face = torch.LongTensor([
         [0, 1, 2], [0, 2, 3]
     ])
@@ -147,3 +144,66 @@ def test_my_renderer():
     )
 
     plot_channels(render(zbuffer_renderer, scene))
+
+
+def test_sampler():
+    heatmap = torch.zeros(1, 1, 5, 5)
+    heatmap[0, 0, 2, 2] = 1.0
+    from filter import sample_particles_from_heatmap_2d
+    hws, alphas = sample_particles_from_heatmap_2d(heatmap, {'cup': 1},
+                                                   deterministic=True,
+                                                   h_min=-4.0, h_max=4.0,
+                                                   w_min=-4.0, w_max=4.0)
+
+    vert = torch.tensor([
+        [-1, -1.1, 0],
+        [1, -1.1, 0],
+        [1, 1.1, 0],
+        [-1, 1.1, 0]
+    ], dtype=torch.float)
+
+    face = torch.LongTensor([
+        [0, 1, 2], [0, 2, 3]
+    ])
+
+    white = torch.ones_like(vert)
+
+    from tracker import World
+
+    world = World()
+    world.add_mesh('cup', vert, face, white)
+    scene = world.create_scene(hws, alphas, 1)
+    print(hws['cup'])
+    print(scene.verts_padded().shape)
+    plt.scatter(scene.verts_padded()[0, :, 0], scene.verts_padded()[0, :, 1])
+    plt.show()
+
+    cameras = FoVOrthographicCameras(device=device,
+                                     max_x=2.5, max_y=2.5,
+                                     min_x=-2.5, min_y=-2.5,
+                                     scale_xyz=((1, 1, 1),))
+
+    raster_settings = RasterizationSettings(
+        image_size=5,
+        blur_radius=0,
+        faces_per_pixel=6,
+    )
+
+    renderer = MeshRenderer(
+        rasterizer=MeshRasterizer(
+            cameras=cameras,
+            raster_settings=raster_settings,
+        ),
+        shader=IdentityShader()
+    )
+
+    distance, elevation, azimuth = 30, 0.0, 0
+    R, T = look_at_view_transform(distance, elevation, azimuth, device=device)
+    image = renderer(meshes_world=scene.to(device), R=R, T=T)
+
+    fig = plt.figure(figsize=(10, 10))
+    for i in range(image.size(-2)):
+        panel = fig.add_subplot(3, 3, i + 1)
+        panel.imshow(image[..., i, 0:3].squeeze().cpu())
+    plt.grid(False)
+    plt.show()

@@ -21,7 +21,7 @@ from pytorch3d.transforms import Translate
 
 # Set the cuda device
 from renderer import CustomFlatShader
-from utils import load_blender_stl_mesh
+from utils import load_blender_ply_mesh
 
 if torch.cuda.is_available():
     device = torch.device("cuda:0")
@@ -40,7 +40,7 @@ for i, file in enumerate(Path('./data/meshes').iterdir()):
     name = str(file.stem)
     models[name] = i
     particles_per_mesh[name] = 1
-    vert, normal, st, color, face = load_blender_stl_mesh(file)
+    vert, normal, st, color, face = load_blender_ply_mesh(file)
     V, _ = vert.shape
     verts[name] = vert.to(device)
     faces[name] = face.to(device)
