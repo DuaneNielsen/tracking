@@ -105,20 +105,22 @@ def load_blender_ply_mesh(file):
 
 
 class BoundingBoxes:
-    def __init__(self, box_screen):
+    def __init__(self, mesh, camera, screen_size=(128, 128)):
         """
 
         :param box_screen: tensor N, A, M, N=batch, A=axis, M=min/max M=0 is min and M=1 is max
         """
-        self.box_screen = box_screen
+        box = mesh.get_bounding_boxes()
+        box_as_verts = box[:, :, :].permute(0, 2, 1)
+        self.box = camera.transform_points_screen(box_as_verts, torch.tensor([list(screen_size)]))
 
     @property
     def min(self):
-        return self.box_screen[:, 0]
+        return self.box[:, 0]
 
     @property
     def max(self):
-        return self.box_screen[:, 1]
+        return self.box[:, 1]
 
     def mpl_anchor(self, n):
         """
@@ -133,13 +135,13 @@ class BoundingBoxes:
         :param n: index of box in array
         :return: tuple (x, y)
         """
-        return self.box_screen[n, 0, 0], self.box_screen[n, 0, 1]
+        return self.box[n, 0, 0], self.box[n, 0, 1]
 
     def height(self, n):
-        return self.box_screen[n, 1, 1] - self.box_screen[n, 0, 1]
+        return self.box[n, 1, 1] - self.box[n, 0, 1]
 
     def width(self, n):
-        return self.box_screen[n, 1, 0] - self.box_screen[n, 0, 0]
+        return self.box[n, 1, 0] - self.box[n, 0, 0]
 
 
 if __name__ == '__main__':

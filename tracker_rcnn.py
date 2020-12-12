@@ -98,14 +98,25 @@ class World:
         else:
             self.colors[name] = color.to(self.device)
 
-    def create_scene(self, hws, alphas, N):
+    def create_scenes(self, hws, alphas, N):
+        """
+        Project meshes into a batch of N scenes
+        Meshes can be appear in the scene multiple times, but must appear the same amount of times in each scene.
+
+        To do - consider a different format of N lists of dicts of objects with full xyz co-ords and rotations
+
+        :param hws: dictionary of N, K, 2 where K is how many times to project the mesh, and 2 is the height and width
+        of the mesh center co-ordinate
+        :param alphas: dictionary of N, K alphas to be added to the color channels of the mesh (transparency)
+        :param N: the amount of scenes in the batch
+        :return: mesh, labels in form...
+        [[meshA, meshA, meshB][meshA, meshA, meshB], ....] [['gorilla', 'gorilla', 'carrot'], ['gorilla', 'gorilla', 'carrot']]
+        """
         batch = []
-        bounding_boxes = []
-        bb_labels = []
+        labels = []
         for i in range(N):
             scene = []
-            bounding_box = []
-            bounding_box_label = []
+            label = []
             for mesh_name in self.models:
                 hw = hws[mesh_name]
                 alpha = alphas[mesh_name]
@@ -127,14 +138,20 @@ class World:
                     v = t.transform_points(m.verts_padded())
                     m = m.update_padded(v)
                     scene += [m]
-                    bounding_box += [m.get_bounding_boxes()]
-                    bounding_box_label += [mesh_name]
+                    label += [mesh_name]
 
-            batch += [join_meshes_as_scene(scene)]
-            bounding_boxes += [bounding_box]
-            bb_labels += [bounding_box_label]
-        batch = join_meshes_as_batch(batch)
-        return batch, bounding_boxes, bb_labels
+            batch += [scene]
+            labels += [label]
+
+        return batch, labels
+
+
+def join_world(batch):
+    return join_meshes_as_batch([join_meshes_as_scene(scene) for scene in batch])
+
+
+def get_bounding_boxes(batch, camera, image_size):
+    return [[BoundingBoxes(mesh, camera, image_size) for mesh in scene] for scene in batch]
 
 
 if __name__ == '__main__':
@@ -165,7 +182,8 @@ if __name__ == '__main__':
             hws[name] = torch.rand(N, K, 2) * 128 - 64
             alphas[name] = torch.ones(N, K)
 
-        scene, bounding_boxes, labels = world.create_scene(hws, alphas, N)
+        scene_batch, labels = world.create_scenes(hws, alphas, N)
+        scene = join_world(scene_batch)
 
         distance = 30
         elevation = 0.0
@@ -196,26 +214,13 @@ if __name__ == '__main__':
             )
         )
 
-        boxes_screen_co_ords = []
-
-        box_batch = []
-        for n in range(N):
-            box_image = []
-            for b in range(len(bounding_boxes[n])):
-                label, box = labels[n][b], bounding_boxes[n][b]
-                box_screen = cameras.transform_points_screen(box[:, :, :].permute(0, 2, 1), torch.tensor([[128, 128]]))
-                box_screen = box_screen[:, :, 0:2]
-                box_image += [box_screen]
-            box_batch += [box_image]
-
+        box_batch = get_bounding_boxes(scene_batch, cameras, image_size=(128, 128))
         image = renderer(scene)
 
         for i in range(N):
             ax[i].clear()
             ax[i].imshow(image[i].clamp(0, 1))
-            for box in box_batch[i]:
-                bb = BoundingBoxes(box)
-                #min_x, min_y = box[0, 0, 0], box[0, 0, 1]
+            for bb in box_batch[i]:
                 boxes_rect = patches.Rectangle(bb.mpl_anchor(0), height=bb.height(0), width=bb.width(0), linewidth=1, edgecolor='r', facecolor='none')
                 ax[i].add_patch(boxes_rect)
         plt.pause(0.2)

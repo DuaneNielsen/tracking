@@ -53,9 +53,8 @@ def test_bounding_box():
                                      scale_xyz=((1, 1, 1),),
                                      R=R, T=T)
 
-    box = meshes.get_bounding_boxes()
-    box_as_verts = box[:, :, :].permute(0, 2, 1)
-    box_screen = cameras.transform_points_screen(box_as_verts, torch.tensor([[128, 128]]))
+    bb = BoundingBoxes(meshes, cameras, screen_size=(128, 128))
+
 
     raster_settings = RasterizationSettings(
         image_size=128,
@@ -71,7 +70,7 @@ def test_bounding_box():
         shader=IdentityShader()
     )
 
-    bb = BoundingBoxes(box_screen)
+
 
     fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 10), constrained_layout=False)
     ax.imshow(renderer(meshes)[0, :, :, 0, :])
