@@ -2,7 +2,7 @@ from pytorch3d.io.ply_io import _load_ply_raw
 from pytorch3d.io.utils import _check_faces_indices, _make_tensor, _open_file
 import torch
 import numpy as np
-
+from matplotlib import patches
 
 def load_ply(f):
     """
@@ -104,44 +104,155 @@ def load_blender_ply_mesh(file):
     return verts, normals, sts, colors, faces
 
 
+class Pos:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+
+class SimpleScreenBoundingBox:
+    def __init__(self, mesh, camera, screen_size):
+        """
+
+           (x, y) = ([0, 0],[1, 1]) ||||||| (x, y) = ([1, 0], [1, 1])
+           ||                                                      ||
+           ||                                                      ||
+           ||                                                      ||
+           (x, y) = ([0, 0], [0, 1]) ||||||| (x, y) = ([1, 0], [0, 1])
+
+        :param mesh: meshes to compute bounding boxes for
+        :param camera: camera to project bounding boxes through
+        :param screen_size: (h, w)
+        """
+
+        world_box = mesh.get_bounding_boxes()
+        assert world_box.size(0) == 1
+        box_verts = world_box[:, :, :].permute(0, 2, 1)
+        self.box = camera.transform_points_screen(box_verts, torch.tensor([list(screen_size)]))[0]
+
+    def top_left_bottom_right(self):
+        return torch.cat((self.box[0, 0], self.box[1, 1], self.box[1, 0], self.box[0, 1]), dim=1)
+
+    @property
+    def bottom_left(self):
+        """
+        :return: tuple (x, y) co-ord
+        """
+        return Pos(self.box[0, 0], self.box[0, 1])
+
+    @property
+    def top_left(self):
+        """
+        :return: tuple (x, y) co-ord
+        """
+        return Pos(self.box[0, 0], self.box[1, 1])
+
+    @property
+    def top_right(self):
+        """
+        :return: tuple (x, y) co-ord
+        """
+        return Pos(self.box[1, 0], self.box[1, 1])
+
+    @property
+    def bottom_right(self):
+        """
+        :return: tuple (x, y) co-ord
+        """
+        return Pos(self.box[1, 0], self.box[0, 1])
+
+    @property
+    def height(self):
+        return self.box[1, 1] - self.box[0, 1]
+
+    @property
+    def width(self):
+        return self.box[1, 0] - self.box[0, 0]
+
+    def get_patch(self, linewidth=1, edgecolor='r'):
+        return patches.Rectangle((self.bottom_left.x, self.bottom_right.y),
+                                 height=self.height, width=self.width,
+                                 linewidth=linewidth, edgecolor=edgecolor, facecolor='none')
+
+    def save(self, file):
+        pass
+
+    @staticmethod
+    def load(self):
+        return BoundingBoxes()
+
+
 class BoundingBoxes:
-    def __init__(self, mesh, camera, screen_size=(128, 128)):
+    def __init__(self):
         """
 
-        :param box_screen: tensor N, A, M, N=batch, A=axis, M=min/max M=0 is min and M=1 is max
+           (x, y) = ([0, 0],[1, 1]) ||||||| (x, y) = ([1, 0], [1, 1])
+           ||                                                      ||
+           ||                                                      ||
+           ||                                                      ||
+           (x, y) = ([0, 0], [0, 1]) ||||||| (x, y) = ([1, 0], [0, 1])
+
+        :param mesh: meshes to compute bounding boxes for
+        :param camera: camera to project bounding boxes through
+        :param screen_size: (h, w)
+        :param labels: LongTensor of N, X labels.
         """
+
+        self.box = torch.empty(0, 2, 3)  # N, (min/max), (x, y, z)
+        self.box_verts = []
+        self.labels = []
+
+    def add_box(self, mesh, camera, screen_size=(128, 128)):
         box = mesh.get_bounding_boxes()
-        box_as_verts = box[:, :, :].permute(0, 2, 1)
-        self.box = camera.transform_points_screen(box_as_verts, torch.tensor([list(screen_size)]))
+        assert box.size(0) == 1
+        box_verts = box[:, :, :].permute(0, 2, 1)
+        self.box_verts += [box_verts]
+        box_screen = camera.transform_points_screen(box_verts, torch.tensor([list(screen_size)]))
+        self.box = torch.cat((self.box, box_screen), dim=0)
 
-    @property
-    def min(self):
-        return self.box[:, 0]
+    def top_left_bottom_right(self):
+        return torch.cat((self.box[:, 0, 0], self.box[:, 1, 1], self.box[:, 1, 0], self.box[:, 0, 1]), dim=1)
 
-    @property
-    def max(self):
-        return self.box[:, 1]
-
-    def mpl_anchor(self, n):
+    def bottom_left(self, n):
         """
-        rectangle anchor for matplotlib
-
-           (0,0) |||||||||||||
-           ||               ||
-           ||               ||
-           ||               ||
-        anchor (x, y) |||||||
-
         :param n: index of box in array
-        :return: tuple (x, y)
+        :return: tuple (x, y) co-ord
         """
-        return self.box[n, 0, 0], self.box[n, 0, 1]
+        return Pos(self.box[n, 0, 0], self.box[n, 0, 1])
+
+    def top_left(self, n):
+        """
+        :param n: index of box in array
+        :return: tuple (x, y) co-ord
+        """
+        return Pos(self.box[n, 0, 0], self.box[n, 1, 1])
+
+    def top_right(self, n):
+        """
+        :param n: index of box in array
+        :return: tuple (x, y) co-ord
+        """
+        return Pos(self.box[n, 1, 0], self.box[n, 1, 1])
+
+    def bottom_right(self, n):
+        """
+        :param n: index of box in array
+        :return: tuple (x, y) co-ord
+        """
+        return Pos(self.box[n, 1, 0], self.box[n, 0, 1])
 
     def height(self, n):
         return self.box[n, 1, 1] - self.box[n, 0, 1]
 
     def width(self, n):
         return self.box[n, 1, 0] - self.box[n, 0, 0]
+
+    def save(self, file):
+        pass
+
+    @staticmethod
+    def load(self):
+        return BoundingBoxes()
 
 
 if __name__ == '__main__':

@@ -75,7 +75,7 @@ def test_bounding_box():
     fig, ax = plt.subplots(ncols=1, nrows=1, figsize=(10, 10), constrained_layout=False)
     ax.imshow(renderer(meshes)[0, :, :, 0, :])
 
-    boxes_rect = patches.Rectangle(bb.mpl_anchor(0), width=bb.width(0), height=bb.height(0), linewidth=4, edgecolor='r',
+    boxes_rect = patches.Rectangle(bb.bottom_left(0), width=bb.width(0), height=bb.height(0), linewidth=4, edgecolor='r',
                                    facecolor='none')
     ax.add_patch(boxes_rect)
     plt.show()
